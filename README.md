@@ -1,6 +1,6 @@
-# Escadote Announcement Bar Widget (PrestaShop + Creative Elements)
+# Escadote Announcement Bar (PrestaShop + Creative Elements)
 
-O **Escadote Widget** adiciona um widget de **barra de anúncios em formato marquee** ao Creative Elements no PrestaShop.
+O **Escadote Announcement Bar** adiciona um widget de **barra de anúncios em formato marquee** ao Creative Elements no PrestaShop.
 
 Com este widget, pode criar uma faixa horizontal com mensagens e ícones em movimento contínuo, ideal para comunicar promoções, portes grátis, prazos de entrega e avisos importantes na loja.
 
