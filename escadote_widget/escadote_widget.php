@@ -12,8 +12,6 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-require_once __DIR__ . '/classes/Widget/EscadoteAnnouncementBar.php';
-
 class Escadote_Widget extends Module
 {
     public function __construct()
@@ -55,8 +53,29 @@ class Escadote_Widget extends Module
     public function hookActionCreativeElementsInit(array $params)
     {
         if (!class_exists('CE\\Widget_Base')) {
-            return;
+            if (!class_exists('Elementor\\Widget_Base')) {
+                return;
+            }
+
+            $aliases = [
+                'Widget_Base',
+                'Controls_Manager',
+                'Group_Control_Typography',
+                'Repeater',
+                'Icons_Manager',
+            ];
+
+            foreach ($aliases as $alias) {
+                $ceClass = 'CE\\' . $alias;
+                $elementorClass = 'Elementor\\' . $alias;
+
+                if (!class_exists($ceClass) && class_exists($elementorClass)) {
+                    class_alias($elementorClass, $ceClass);
+                }
+            }
         }
+
+        require_once __DIR__ . '/classes/Widget/EscadoteAnnouncementBar.php';
 
         $widgetsManager = null;
 
