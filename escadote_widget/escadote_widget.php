@@ -8,37 +8,32 @@
  * that is bundled with this package in the file LICENSE.txt.
  */
 
+
 if (!defined('_PS_VERSION_')) {
     exit;
 }
 
 class Escadote_Widget extends Module
 {
-    /**
-     * Hooks usados por diferentes versões do Creative Elements para registar widgets.
-     *
-     * @var string[]
-     */
-    private $creativeElementsWidgetHooks = [
-        'actionCreativeElementsInit',
-        'actionCreativeElementsRegisterWidgets',
-        'actionCreativeElementsWidgetsRegistered',
-    ];
 
-    public function __construct()
+    /**
+     * Module Constructor
+     *
+     * @param string $name Module unique name
+     * @param Context $context
+     */
+    public function __construct($name = null, Context $context = null)
     {
         $this->name = 'escadote_widget';
         $this->tab = 'front_office_features';
         $this->version = '1.0.0';
         $this->author = 'Escadote';
         $this->need_instance = 0;
-        $this->bootstrap = true;
-
-        parent::__construct();
+        $this->bootstrap = true;        
 
         $this->displayName = $this->trans('Escadote Widget', [], 'Modules.EscadoteWidget.Admin');
         $this->description = $this->trans(
-            'Adds a Creative Elements announcement bar widget with marquee effect.',
+            'Adds a Creative Elements widgets.',
             [],
             'Modules.EscadoteWidget.Admin'
         );
@@ -47,19 +42,13 @@ class Escadote_Widget extends Module
             'min' => '1.7.8.0',
             'max' => _PS_VERSION_,
         ];
+
+        parent::__construct();
     }
 
     public function install()
     {
-        if (!parent::install()) {
-            return false;
-        }
-
-        if (!$this->registerCreativeElementsHooks()) {
-            return false;
-        }
-
-        return $this->registerHook('actionFrontControllerSetMedia');
+        return parent::install() && $this->registerHook('actionCreativeElementsInit');
     }
 
     public function uninstall()
@@ -67,138 +56,33 @@ class Escadote_Widget extends Module
         return parent::uninstall();
     }
 
-    public function hookActionCreativeElementsInit(array $params)
+/**
+     * Add module to Creative Elements' actions
+     */
+    public function hookActionCreativeElementsInit()
     {
-        $this->registerCreativeElementsWidget($params);
-    }
+        CE\add_action('elementor/elements/categories_registered', [$this, 'registerCategory']);
 
-    public function hookActionCreativeElementsRegisterWidgets(array $params)
-    {
-        $this->registerCreativeElementsWidget($params);
-    }
-
-    public function hookActionCreativeElementsWidgetsRegistered(array $params)
-    {
-        $this->registerCreativeElementsWidget($params);
+        CE\add_action('elementor/widgets/widgets_registered', [$this, 'registerWidget']);
     }
 
     /**
-     * Regista o widget no manager do Creative Elements.
+     * Register a custom widget category
      */
-    private function registerCreativeElementsWidget(array $params)
+    public function registerCategory($elements_manager)
     {
-        if (!class_exists('CE\\Widget_Base')) {
-            if (!class_exists('Elementor\\Widget_Base')) {
-                return;
-            }
-
-            $aliases = [
-                'Widget_Base',
-                'Controls_Manager',
-                'Group_Control_Typography',
-                'Repeater',
-                'Icons_Manager',
-            ];
-
-            foreach ($aliases as $alias) {
-                $ceClass = 'CE\\' . $alias;
-                $elementorClass = 'Elementor\\' . $alias;
-
-                if (!class_exists($ceClass) && class_exists($elementorClass)) {
-                    class_alias($elementorClass, $ceClass);
-                }
-            }
-        }
-
-        require_once __DIR__ . '/classes/Widget/EscadoteAnnouncementBar.php';
-
-        $widgetsManager = $this->resolveWidgetsManager($params);
-
-        if (!$widgetsManager) {
-            return;
-        }
-
-        $categoryArgs = [
-            'title' => 'Escadote',
-            'icon' => 'fa fa-bullhorn',
-        ];
-
-        if (method_exists($widgetsManager, 'add_category')) {
-            $widgetsManager->add_category('escadote', $categoryArgs);
-        } elseif (method_exists($widgetsManager, 'addCategory')) {
-            $widgetsManager->addCategory('escadote', $categoryArgs);
-        }
-
-        $widget = new EscadoteAnnouncementBar();
-
-        if (method_exists($widgetsManager, 'register_widget_type')) {
-            $widgetsManager->register_widget_type($widget);
-        } elseif (method_exists($widgetsManager, 'register')) {
-            $widgetsManager->register($widget);
-        } elseif (method_exists($widgetsManager, 'registerWidgetType')) {
-            $widgetsManager->registerWidgetType($widget);
-        }
+        $elements_manager->addCategory('escadote', [
+            'title' => $this->l('Escadote'),
+        ]);
     }
 
     /**
-     * Regista hooks CE disponíveis nesta instalação.
+     * Include and register a widget
      */
-    private function registerCreativeElementsHooks()
+    public function registerWidget($widgets_manager)
     {
-        $registered = false;
+        include _PS_MODULE_DIR_ . $this->name . '/classes/widget_marquee.php';
 
-        foreach ($this->creativeElementsWidgetHooks as $hookName) {
-            if ((int) Hook::getIdByName($hookName) <= 0) {
-                continue;
-            }
-
-            $registered = $this->registerHook($hookName) || $registered;
-        }
-
-        return $registered;
-    }
-
-    /**
-     * Resolve o widgets manager independentemente da chave usada no hook.
-     *
-     * @return object|null
-     */
-    private function resolveWidgetsManager(array $params)
-    {
-        $candidateKeys = [
-            'widgets_manager',
-            'manager',
-            'widgetsManager',
-        ];
-
-        foreach ($candidateKeys as $key) {
-            if (!isset($params[$key])) {
-                continue;
-            }
-
-            $candidate = $params[$key];
-
-            if (is_object($candidate) && (
-                method_exists($candidate, 'register_widget_type')
-                || method_exists($candidate, 'register')
-                || method_exists($candidate, 'registerWidgetType')
-            )) {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    public function hookActionFrontControllerSetMedia()
-    {
-        $this->context->controller->registerStylesheet(
-            'module-escadote-widget-marquee',
-            'modules/' . $this->name . '/views/css/announcement-bar.css',
-            [
-                'media' => 'all',
-                'priority' => 150,
-            ]
-        );
+        $widgets_manager->registerWidgetType(new EscadoteWidgets\WidgetMarquee());
     }
 }
