@@ -14,6 +14,17 @@ if (!defined('_PS_VERSION_')) {
 
 class Escadote_Widget extends Module
 {
+    /**
+     * Hooks usados por diferentes versões do Creative Elements para registar widgets.
+     *
+     * @var string[]
+     */
+    private $creativeElementsWidgetHooks = [
+        'actionCreativeElementsInit',
+        'actionCreativeElementsRegisterWidgets',
+        'actionCreativeElementsWidgetsRegistered',
+    ];
+
     public function __construct()
     {
         $this->name = 'escadote_widget';
@@ -40,9 +51,15 @@ class Escadote_Widget extends Module
 
     public function install()
     {
-        return parent::install()
-            && $this->registerHook('actionCreativeElementsInit')
-            && $this->registerHook('actionFrontControllerSetMedia');
+        if (!parent::install()) {
+            return false;
+        }
+
+        if (!$this->registerCreativeElementsHooks()) {
+            return false;
+        }
+
+        return $this->registerHook('actionFrontControllerSetMedia');
     }
 
     public function uninstall()
@@ -51,6 +68,24 @@ class Escadote_Widget extends Module
     }
 
     public function hookActionCreativeElementsInit(array $params)
+    {
+        $this->registerCreativeElementsWidget($params);
+    }
+
+    public function hookActionCreativeElementsRegisterWidgets(array $params)
+    {
+        $this->registerCreativeElementsWidget($params);
+    }
+
+    public function hookActionCreativeElementsWidgetsRegistered(array $params)
+    {
+        $this->registerCreativeElementsWidget($params);
+    }
+
+    /**
+     * Regista o widget no manager do Creative Elements.
+     */
+    private function registerCreativeElementsWidget(array $params)
     {
         if (!class_exists('CE\\Widget_Base')) {
             if (!class_exists('Elementor\\Widget_Base')) {
@@ -77,13 +112,7 @@ class Escadote_Widget extends Module
 
         require_once __DIR__ . '/classes/Widget/EscadoteAnnouncementBar.php';
 
-        $widgetsManager = null;
-
-        if (isset($params['widgets_manager'])) {
-            $widgetsManager = $params['widgets_manager'];
-        } elseif (isset($params['manager'])) {
-            $widgetsManager = $params['manager'];
-        }
+        $widgetsManager = $this->resolveWidgetsManager($params);
 
         if (!$widgetsManager) {
             return;
@@ -106,7 +135,59 @@ class Escadote_Widget extends Module
             $widgetsManager->register_widget_type($widget);
         } elseif (method_exists($widgetsManager, 'register')) {
             $widgetsManager->register($widget);
+        } elseif (method_exists($widgetsManager, 'registerWidgetType')) {
+            $widgetsManager->registerWidgetType($widget);
         }
+    }
+
+    /**
+     * Regista hooks CE disponíveis nesta instalação.
+     */
+    private function registerCreativeElementsHooks()
+    {
+        $registered = false;
+
+        foreach ($this->creativeElementsWidgetHooks as $hookName) {
+            if ((int) Hook::getIdByName($hookName) <= 0) {
+                continue;
+            }
+
+            $registered = $this->registerHook($hookName) || $registered;
+        }
+
+        return $registered;
+    }
+
+    /**
+     * Resolve o widgets manager independentemente da chave usada no hook.
+     *
+     * @return object|null
+     */
+    private function resolveWidgetsManager(array $params)
+    {
+        $candidateKeys = [
+            'widgets_manager',
+            'manager',
+            'widgetsManager',
+        ];
+
+        foreach ($candidateKeys as $key) {
+            if (!isset($params[$key])) {
+                continue;
+            }
+
+            $candidate = $params[$key];
+
+            if (is_object($candidate) && (
+                method_exists($candidate, 'register_widget_type')
+                || method_exists($candidate, 'register')
+                || method_exists($candidate, 'registerWidgetType')
+            )) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     public function hookActionFrontControllerSetMedia()
